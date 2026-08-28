@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brizin's RNG</title>
+<style>
+  :root{
+    --bg1:#0a0a14;
+    --bg2:#12121f;
+    --card:#181828;
+    --card-border:#2a2a40;
+    --text:#e8e8f0;
+    --muted:#9090a8;
+    --accent:#7c5cff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Arial, sans-serif;
+    background:radial-gradient(circle at 50% 0%, #1a1a30, var(--bg1) 60%);
+    color:var(--text);
+    min-height:100vh;
+  }
+  #app{max-width:920px;margin:0 auto;padding:16px;}
+
+  header{
+    display:flex;justify-content:space-between;align-items:center;
+    flex-wrap:wrap;gap:10px;
+    padding:14px 18px;
+    background:linear-gradient(135deg,#1c1c30,#141420);
+    border:1px solid var(--card-border);
+    border-radius:14px;
+    margin-bottom:14px;
+  }
+  header h1{margin:0;font-size:20px;background:linear-gradient(90deg,#a78bfa,#38bdf8);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  header .playerTag{font-size:12px;color:var(--muted);margin-top:2px;}
+  .stats{display:flex;gap:16px;flex-wrap:wrap;}
+  .stat{text-align:center;}
+  .stat .val{font-size:16px;font-weight:700;}
+  .stat .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+
+  nav.tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  nav.tabs button{
+    flex:1;min-width:100px;
+    padding:10px 12px;border-radius:10px;border:1px solid var(--card-border);
+    background:var(--card);color:var(--muted);cursor:pointer;font-size:13px;font-weight:600;
+    transition:.15s;
+  }
+  nav.tabs button.active{background:linear-gradient(135deg,#4c3aa0,#3a2a80);color:#fff;border-color:#5c46c9;}
+  nav.tabs button:hover{color:#fff;}
+
+  .tab{display:none;}
+  .tab.active{display:block;animation:fadein .2s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .roll-panel{
+    background:var(--card);border:1px solid var(--card-border);border-radius:16px;
+    padding:24px;text-align:center;margin-bottom:14px;
+  }
+  #rollDisplay{
+    font-size:32px;font-weight:800;padding:30px 10px;border-radius:14px;
+    background:#0d0d18;border:2px dashed #33334d;margin-bottom:16px;
+    min-height:100px;display:flex;align-items:center;justify-content:center;
+    transition:.15s;
+  }
+  #rollDisplay.hit{border-style:solid;}
+  .roll-controls{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;}
+  #rollBtn{
+    background:linear-gradient(135deg,#7c5cff,#5c3ade);
+    border:none;color:#fff;padding:16px 40px;border-radius:12px;
+    font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(124,92,255,.4);
+    transition:.15s;
+  }
+  #rollBtn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;}
+  #rollBtn:not(:disabled):hover{transform:translateY(-2px);}
+  #autoRollBtn{
+    background:#20203a;border:1px solid #3a3a5c;color:#c9c9e8;padding:16px 22px;
+    border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;
+  }
+  #autoRollBtn.on{background:linear-gradient(135deg,#2f6b4a,#1f4a33);border-color:#3fa869;color:#fff;}
+  #cooldownText{color:var(--muted);font-size:13px;margin-top:8px;height:16px;}
+
+  .active-potions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px;}
+  .potion-chip{
+    background:#20203a;border:1px solid #3a3a5c;border-radius:20px;
+    padding:6px 12px;font-size:12px;color:#c9c9e8;
+  }
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .item-card{
+    background:var(--card);border:1px solid var(--card-border);border-radius:14px;
+    padding:14px;display:flex;flex-direction:column;gap:6px;
+  }
+  .item-card h3{margin:0;font-size:15px;}
+  .item-card p{margin:0;font-size:12.5px;color:var(--muted);flex:1;}
+  .item-card .row{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
+  .cost{font-weight:700;color:#ffd76a;font-size:13px;}
+  .buy-btn{
+    background:#2a2a48;border:1px solid #44447a;color:#fff;padding:7px 14px;
+    border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;
+  }
+  .buy-btn:hover:not(:disabled){background:#3a3a68;}
+  .buy-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .buy-btn.equipped{background:#2f6b4a;border-color:#3fa869;}
+  .buy-btn.owned{background:#1c3a2c;border-color:#2c5a42;color:#7fd9a0;cursor:default;}
+
+  .inv-card{position:relative;text-align:center;padding:16px 10px;}
+  .inv-card .count{position:absolute;top:8px;right:10px;font-size:11px;background:#000a;padding:2px 7px;border-radius:10px;}
+  .inv-card .odds{font-size:11px;color:var(--muted);margin-top:4px;}
+  .inv-card.locked{opacity:.35;filter:grayscale(1);}
+  .exclusive-tag{display:block;margin-top:4px;font-size:10px;letter-spacing:1px;color:#ffd76a;font-weight:800;}
+
+  .toast{
+    position:fixed;top:16px;left:50%;transform:translateX(-50%);
+    background:#1c1c30;border:1px solid #5c46c9;padding:12px 22px;border-radius:10px;
+    font-weight:700;z-index:50;opacity:0;transition:.3s;pointer-events:none;
+    max-width:90%;text-align:center;
+  }
+  .toast.show{opacity:1;top:24px;}
+
+  .section-title{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:18px 0 8px;}
+
+  .profile-input{
+    padding:9px 12px;border-radius:8px;border:1px solid #3a3a5c;
+    background:#0d0d18;color:#fff;font-size:13px;width:100%;margin-bottom:8px;
+  }
+
+  @keyframes rainbow{
+    0%{filter:hue-rotate(0deg);}100%{filter:hue-rotate(360deg);}
+  }
+  @keyframes pulseWhite{
+    0%,100%{box-shadow:0 0 20px 4px rgba(255,255,255,.5);}50%{box-shadow:0 0 40px 12px rgba(255,255,255,.9);}
+  }
+  @keyframes pulseShadow{
+    0%,100%{box-shadow:0 0 10px 2px rgba(139,92,246,.4);}50%{box-shadow:0 0 25px 8px rgba(139,92,246,.85);}
+  }
+  @keyframes bgShift{
+    0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}
+  }
+  @keyframes phantomPulse{
+    0%,100%{box-shadow:0 0 15px 3px rgba(30,27,75,.7);}50%{box-shadow:0 0 32px 10px rgba(139,92,246,.65);}
+  }
+  @keyframes brizinGlow{
+    0%,100%{box-shadow:0 0 25px 6px rgba(255,255,255,.6), 0 0 55px 16px rgba(255,0,200,.4);}
+    50%{box-shadow:0 0 50px 16px rgba(255,255,255,.95), 0 0 90px 30px rgba(0,200,255,.55);}
+  }
+
+  /* v2 polish */
+  .roll-stage{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 18px;flex-wrap:wrap;}
+  .avatar-wrap{position:relative;width:108px;height:108px;display:grid;place-items:center;border-radius:20px;background:#0a0a14;border:1px solid #30304b;overflow:visible;}
+  .avatar-wrap::before{content:"";position:absolute;inset:12px;border-radius:50%;background:radial-gradient(circle,var(--aura-glow,#7c5cff55),transparent 68%);filter:blur(7px);opacity:.9;}
+  #pixelAvatar{width:88px;height:88px;image-rendering:pixelated;image-rendering:crisp-edges;position:relative;z-index:1;}
+  .aura-label{font-size:11px;color:var(--muted);margin-top:4px;}
+  #equippedAuraName{font-size:14px;font-weight:800;margin-top:2px;}
+  #rollBtn.cooling{position:relative;overflow:hidden;background:linear-gradient(135deg,#30245f,#251c48);}
+  #rollBtn.cooling::after{content:"";position:absolute;inset:0;background:conic-gradient(rgba(255,255,255,.28) calc(var(--cooldown-progress,0)*1%),transparent 0);mix-blend-mode:screen;pointer-events:none;}
+  #rollBtn .roll-inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:2px;}
+  #cooldownText{font-variant-numeric:tabular-nums;}
+  .sync-status{font-size:11px;color:#7fd9a0;text-align:center;margin-top:8px;min-height:14px;}
+  .inv-card{cursor:pointer;transition:.18s;}
+  .inv-card:hover{transform:translateY(-3px);border-color:#5c46c9;box-shadow:0 8px 24px rgba(0,0,0,.22);}
+  .inv-card.equipped{border-color:#7c5cff;box-shadow:0 0 0 1px #7c5cff55,0 8px 28px #7c5cff22;}
+  .aura-title{display:inline-block;padding:5px 8px;border-radius:8px;max-width:100%;}
+  .aura-meta{font-size:10.5px;color:var(--muted);line-height:1.45;margin-top:6px;}
+  .rarity-badge{display:inline-block;margin-top:6px;padding:3px 7px;border-radius:999px;background:#10101d;border:1px solid #363650;font-size:10px;font-weight:800;letter-spacing:.3px;}
+  .hint{font-size:11px;color:var(--muted);margin-top:6px;}
+  .server-card{max-width:620px;}
+  @keyframes avatarBob{0%,100%{transform:translateY(1px)}50%{transform:translateY(-3px)}}
+  #pixelAvatar{animation:avatarBob .8s steps(2,end) infinite;}
+  @media(max-width:620px){.roll-stage{gap:10px}.avatar-wrap{width:92px;height:92px}.avatar-wrap canvas{width:76px;height:76px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <h1>✨ Brizin's RNG</h1>
+      <div class="playerTag" id="playerTag">Not logged in</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="val" id="shardsVal">0</div><div class="lbl">Shards</div></div>
+      <div class="stat"><div class="val" id="luckVal">1.00x</div><div class="lbl">Luck</div></div>
+      <div class="stat"><div class="val" id="rollsVal">0</div><div class="lbl">Rolls</div></div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="roll" class="active">🎰 Roll</button>
+    <button data-tab="shop">🧪 Shop</button>
+    <button data-tab="accessories">💍 Accessories</button>
+    <button data-tab="quests">🗒️ Quests</button>
+    <button data-tab="inventory">📦 Collection</button>
+    <button data-tab="profile">👤 Profile</button>
+  </nav>
+
+  <section id="tab-roll" class="tab active">
+    <div class="roll-panel">
+      <div class="roll-stage">
+        <div class="avatar-wrap" id="avatarWrap"><canvas id="pixelAvatar" width="32" height="32"></canvas></div>
+        <div>
+          <div class="aura-label">EQUIPPED AURA</div>
+          <div id="equippedAuraName">None</div>
+          <div class="hint">Clique em uma aura da coleção para alternar.</div>
+        </div>
+      </div>
+      <div id="rollDisplay">Ready to roll</div>
+      <div class="roll-controls">
+        <button id="rollBtn"><span class="roll-inner"><span>ROLL AURA</span><small id="rollBtnSub">READY</small></span></button>
+        <button id="autoRollBtn" style="display:none;">Auto Roll: OFF</button>
+      </div>
+      <div id="cooldownText"></div>
+      <div class="active-potions" id="activePotions"></div>
+    </div>
+  </section>
+
+  <section id="tab-shop" class="tab">
+    <div class="section-title">Upgrades</div>
+    <div class="grid" id="upgradeGrid"></div>
+    <div class="section-title">Luck &amp; Speed Potions</div>
+    <div class="grid" id="potionGrid"></div>
+  </section>
+
+  <section id="tab-accessories" class="tab">
+    <div class="section-title">Accessories (equip up to 3 — permanent bonus while equipped)</div>
+    <div class="grid" id="accessoryGrid"></div>
+  </section>
+
+  <section id="tab-quests" class="tab">
+    <div class="section-title">Quests</div>
+    <div class="grid" id="questGrid"></div>
+  </section>
+
+  <section id="tab-inventory" class="tab">
+    <div class="section-title">Aura Collection</div>
+    <div class="grid" id="inventoryGrid"></div>
+  </section>
+
+  <section id="tab-profile" class="tab">
+    <div class="section-title">Player Login</div>
+    <div class="item-card" style="max-width:420px;">
+      <p>Set a name to personalize your save file. Your player name is linked to a server-side save. Progress is stored on the game server; the browser only keeps a small player ID.</p>
+      <input id="playerNameInput" class="profile-input" type="text" placeholder="Your name" maxlength="20">
+      <button class="buy-btn" id="loginBtn">Set Name</button>
+    </div>
+    <div class="section-title">Server Save</div>
+    <div class="item-card server-card">
+      <h3>☁️ Cloud Progress</h3>
+      <p>Your progress is stored on the game server, not in a downloaded save file. The browser only keeps a small player ID so the server knows which save belongs to you.</p>
+      <div class="sync-status" id="syncStatus">Connecting to server...</div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const AURAS = [
+  { id:'common',     name:'Common',     chance:2,        color:'#9ca3af', reward:2 },
+  { id:'faded',      name:'Faded',      chance:3,        color:'#a1a1aa', reward:3 },
+  { id:'uncommon',   name:'Uncommon',   chance:4,        color:'#4ade80', reward:3 },
+  { id:'breeze',     name:'Breeze',     chance:6,        color:'#86efac', reward:4 },
+  { id:'rare',       name:'Rare',       chance:10,       color:'#38bdf8', reward:6 },
+  { id:'spark',      name:'Spark',      chance:15,       color:'#fde047', reward:8 },
+  { id:'ember',      name:'Ember',      chance:20,       color:'#fb7185', reward:10 },
+  { id:'epic',       name:'Epic',       chance:30,       color:'#a78bfa', reward:15 },
+  { id:'frost',      name:'Frost',      chance:50,       color:'#7dd3fc', reward:24 },
+  { id:'storm',      name:'Storm',      chance:70,       color:'#64748b', reward:33 },
+  { id:'legendary',  name:'Legendary',  chance:100,      color:'#fb923c', reward:45 },
+  { id:'shadow',     name:'Shadow',     chance:150,      color:'#c4b5fd', reward:68,    special:'shadow' },
+  { id:'blaze',      name:'Blaze',      chance:200,      color:'#f97316', reward:90 },
+  { id:'mythic',     name:'Mythic',     chance:350,      color:'#f87171', reward:160 },
+  { id:'toxic',      name:'Toxic',      chance:500,      color:'#84cc16', reward:245 },
+  { id:'crystal',    name:'Crystal',    chance:700,      color:'#67e8f9', reward:360 },
+  { id:'celestial',  name:'Celestial',  chance:1000,     color:'#22d3ee', reward:550 },
+  { id:'inferno',    name:'Inferno',    chance:1500,     color:'#dc2626', reward:870,   special:'fire' },
+  { id:'glacier',    name:'Glacier',    chance:2000,     color:'#38bdf8', reward:1180,  special:'ice' },
+  { id:'ethereal',   name:'Ethereal',   chance:3500,     color:'#f472b6', reward:2200 },
+  { id:'thunder',    name:'Thunder',    chance:5000,     color:'#eab308', reward:3250 },
+  { id:'abyss',      name:'Abyss',      chance:7000,     color:'#1e1b4b', reward:4760,  special:'shadow' },
+  { id:'void',       name:'Void',       chance:10000,    color:'#8b5cf6', reward:7000 },
+  { id:'solar',      name:'Solar',      chance:15000,    color:'#fbbf24', reward:10350 },
+  { id:'lunar',      name:'Lunar',      chance:20000,    color:'#c4b5fd', reward:13760 },
+  { id:'radiant',    name:'Radiant',    chance:35000,    color:'#facc15', reward:24000, special:'gold' },
+  { id:'nebula',     name:'Nebula',     chance:50000,    color:'#e879f9', reward:33750, special:'nebula' },
+  { id:'quantum',    name:'Quantum',    chance:70000,    color:'#22d3ee', reward:46900, special:'quantum' },
+  { id:'genesis',    name:'Genesis',    chance:120000,   color:'#ff5cf1', reward:80000, special:'rainbow' },
+  { id:'phantom',    name:'Phantom',    chance:200000,   color:'#a78bfa', reward:142000, special:'phantom' },
+  { id:'astral',     name:'Astral',     chance:300000,   color:'#818cf8', reward:225000, special:'astral' },
+  { id:'exalted',    name:'Exalted',    chance:500000,   color:'#ffffff', reward:400000, special:'white' },
+  { id:'brizin',     name:'👑 BRIZIN',  chance:10000000, color:'#ffffff', reward:9000000, special:'brizin', exclusive:true },
+];
+
+const POTIONS = [
+  {id:'p1',name:'Minor Luck Potion',desc:'+0.5 Luck for 60s',cost:40,luck:0.5,duration:60},
+  {id:'p2',name:'Luck Potion',desc:'+1.5 Luck for 90s',cost:180,luck:1.5,duration:90},
+  {id:'p3',name:'Greater Luck Potion',desc:'+4 Luck for 120s',cost:700,luck:4,duration:120},
+  {id:'p4',name:'Supreme Luck Potion',desc:'+10 Luck for 90s',cost:3000,luck:10,duration:90},
+  {id:'p5',name:'Speed Potion',desc:'Halves roll time for 60s',cost:150,speed:true,duration:60},
+  {id:'p6',name:'Mega Luck Potion',desc:'+200 Luck for 60s',cost:15000,luck:200,duration:60},
+  {id:'p7',name:'Ultra Luck Potion',desc:'+2,000 Luck for 60s',cost:120000,luck:2000,duration:60},
+  {id:'p8',name:'Godly Luck Potion',desc:'+20,000 Luck for 45s',cost:900000,luck:20000,duration:45},
+  {id:'p9',name:"Brizin's Blessing",desc:'+100,000 Luck for 30s — the ultimate luck boost',cost:5000000,luck:100000,duration:30},
+];
+
+const ACCESSORIES = [
+  {id:'a1',name:'Lucky Clover',desc:'+0.2 permanent Luck while equipped',cost:250,luck:0.2},
+  {id:'a2',name:"Rabbit's Foot",desc:'+0.5 permanent Luck while equipped',cost:700,luck:0.5},
+  {id:'a3',name:'Golden Ring',desc:'+1 permanent Luck while equipped',cost:1800,luck:1},
+  {id:'a4',name:'Ancient Amulet',desc:'+2.5 permanent Luck while equipped',cost:5000,luck:2.5},
+  {id:'a5',name:'Cosmic Pendant',desc:'+5 permanent Luck while equipped',cost:15000,luck:5},
+  {id:'a6',name:'Eternal Crown',desc:'+10 permanent Luck while equipped',cost:50000,luck:10},
+];
+
+const UPGRADES = [
+  {id:'auto', name:'Auto Roller', desc:'Unlocks an Auto Roll switch that rolls for you automatically', cost:200},
+];
+
+const QUESTS = [
+  {id:'q1',  name:'First Steps',        desc:'Roll 10 times',                          type:'rolls',              target:10,     reward:100},
+  {id:'q2',  name:'Getting Lucky',      desc:'Roll 100 times',                         type:'rolls',              target:100,    reward:1000},
+  {id:'q3',  name:'Aura Hunter',        desc:'Roll 500 times',                         type:'rolls',              target:500,    reward:8000},
+  {id:'q4',  name:'Rare Find',          desc:'Obtain a Legendary aura or better',      type:'auraIndex',          target:10,     reward:2000},
+  {id:'q5',  name:'Epic Collector',     desc:'Obtain a Mythic aura or better',         type:'auraIndex',          target:13,     reward:6000},
+  {id:'q6',  name:'Celestial Being',    desc:'Obtain a Celestial aura or better',      type:'auraIndex',          target:16,     reward:15000},
+  {id:'q7',  name:'Into the Void',      desc:'Obtain the Void aura or better',         type:'auraIndex',          target:22,     reward:40000},
+  {id:'q8',  name:'Radiant Dreams',     desc:'Obtain the Radiant aura or better',      type:'auraIndex',          target:25,     reward:120000},
+  {id:'q9',  name:'Genesis Reached',    desc:'Obtain the Genesis aura or better',      type:'auraIndex',          target:28,     reward:400000},
+  {id:'q10', name:'Chosen One',         desc:'Obtain BRIZIN, the exclusive aura',      type:'auraIndex',          target:32,     reward:5000000},
+  {id:'q11', name:'Potion Master',      desc:'Buy any potion',                         type:'potionBought',       target:1,      reward:300},
+  {id:'q12', name:'Accessorized',       desc:'Equip an accessory',                     type:'accessoryEquipped',  target:1,      reward:500},
+  {id:'q13', name:'Automation',         desc:'Purchase the Auto Roller upgrade',       type:'upgradeOwned',       target:1,      reward:1000},
+  {id:'q14', name:'Lucky Star',         desc:'Reach a Luck stat of 10x or higher',     type:'luck',               target:10,     reward:3000},
+  {id:'q15', name:'Overwhelming Luck',  desc:'Reach a Luck stat of 1000x or higher',   type:'luck',               target:1000,   reward:50000},
+];
+
+const MAX_EQUIP = 3;
+const BASE_ANIM_MS = 1400;
+const BASE_COOLDOWN_MS = 900;
+
+let state = {
+  playerName: '',
+  shards: 100,
+  totalRolls: 0,
+  isRolling: false,
+  activePotions: [], // {uid, def, endsAt}
+  ownedAccessories: [],
+  equippedAccessories: [],
+  inventory: {},
+  bestAuraIndex: -1,
+  ownedUpgrades: [],
+  autoRollActive: false,
+  potionsBoughtCount: 0,
+  everEquippedAccessory: false,
+  maxLuckReached: 1,
+  claimedQuests: [],
+  equippedAuraId: null,
+  auraMeta: {},
+};
+
+function computeLuck(){
+  let luck = 1;
+  state.activePotions.forEach(p=>{ if(p.def.luck) luck += p.def.luck; });
+  state.equippedAccessories.forEach(id=>{
+    const acc = ACCESSORIES.find(a=>a.id===id);
+    if(acc) luck += acc.luck;
+  });
+  return luck;
+}
+function hasSpeedActive(){
+  return state.activePotions.some(p=>p.def.speed);
+}
+function fmt(n){
+  n = Math.floor(n);
+  if(n>=1e9) return (n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(2)+'K';
+  return n.toString();
+}
+
+function pickAura(luck){
+  // Balanced rarity: luck helps, but no longer turns high-tier auras into near-guarantees.
+  // Effective luck has diminishing returns after 25x.
+  const effectiveLuck = 1 + Math.sqrt(Math.max(0, luck - 1)) * 2.25;
+  const weights = AURAS.map(a=>{
+    const rarity = Math.max(1, a.chance);
+    const luckBoost = Math.pow(effectiveLuck, 0.72 * Math.min(1, Math.log10(rarity) / 5));
+    return Math.max(0.000001, (1 / Math.pow(rarity, 0.92)) * luckBoost);
+  });
+  // Keep ultra-rare tiers meaningfully rare even with large luck values.
+  const capped = AURAS.map((a,i)=> i===0 ? weights[i] : Math.min(weights[i], weights[0] * (0.55 / Math.sqrt(a.chance))));
+  const total = capped.reduce((a,b)=>a+b,0);
+  let roll = Math.random()*total;
+  for(let i=0;i<capped.length;i++){
+    roll -= capped[i];
+    if(roll<=0) return i;
+  }
+  return 0;
+}
+
+function auraStyle(aura){
+  switch(aura.special){
+    case 'gold':
+      return `background:linear-gradient(135deg,#fff3b0,#facc15,#b8860b);color:#3a2e00;`;
+    case 'rainbow':
+      return `background:linear-gradient(90deg,#ff5cf1,#5cff8f,#5cc9ff,#ff5c5c);color:#fff;animation:rainbow 2s linear infinite;`;
+    case 'white':
+      return `background:#fff;color:#111;animation:pulseWhite 1.4s ease-in-out infinite;`;
+    case 'shadow':
+      return `background:#0d0d14;color:#c4b5fd;animation:pulseShadow 1.6s ease-in-out infinite;`;
+    case 'fire':
+      return `background:linear-gradient(120deg,#7f1d1d,#f97316,#fde047,#f97316,#7f1d1d);background-size:300% 300%;color:#fff;animation:bgShift 1.8s ease-in-out infinite;`;
+    case 'ice':
+      return `background:linear-gradient(120deg,#082f49,#38bdf8,#e0f2fe,#38bdf8,#082f49);background-size:300% 300%;color:#04202e;animation:bgShift 2s ease-in-out infinite;`;
+    case 'nebula':
+      return `background:linear-gradient(120deg,#3b0764,#a21caf,#f472b6,#3b0764);background-size:300% 300%;color:#fff;animation:bgShift 2.2s ease-in-out infinite;`;
+    case 'quantum':
+      return `background:linear-gradient(120deg,#083344,#22d3ee,#a5f3fc,#22d3ee,#083344);background-size:300% 300%;color:#04202e;animation:bgShift 1.5s ease-in-out infinite;`;
+    case 'phantom':
+      return `background:#050508;color:#a78bfa;animation:phantomPulse 1.8s ease-in-out infinite;`;
+    case 'astral':
+      return `background:linear-gradient(120deg,#1e1b4b,#6366f1,#c4b5fd,#6366f1,#1e1b4b);background-size:300% 300%;color:#fff;animation:bgShift 2.4s ease-in-out infinite;`;
+    case 'brizin':
+      return `background:linear-gradient(90deg,#ff5cf1,#facc15,#5cc9ff,#ffffff,#ff5c5c);background-size:400% 400%;color:#1a1a1a;font-weight:900;animation:rainbow 1.2s linear infinite, brizinGlow 1.4s ease-in-out infinite;`;
+    default:
+      return `color:${aura.color};`;
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+
+function getRarityLabel(aura){
+  if(aura.chance >= 1000000) return 'DIVINE';
+  if(aura.chance >= 100000) return 'TRANSCENDENT';
+  if(aura.chance >= 10000) return 'SECRET';
+  if(aura.chance >= 1000) return 'MYTHIC';
+  if(aura.chance >= 100) return 'LEGENDARY';
+  if(aura.chance >= 20) return 'EPIC';
+  if(aura.chance >= 5) return 'RARE';
+  return 'COMMON';
+}
+function formatDate(ts){
+  if(!ts) return 'Not obtained yet';
+  return new Date(ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+}
+function setEquippedAura(id){
+  if(!state.inventory[id]) return;
+  state.equippedAuraId = id;
+  renderAvatar();
+  renderInventory();
+  saveServerState();
+  showToast(`✨ ${AURAS.find(a=>a.id===id).name} equipada!`);
+}
+function drawPixelAvatar(){
+  const c=document.getElementById('pixelAvatar'); if(!c) return;
+  const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=false; ctx.clearRect(0,0,32,32);
+  const aura= AURAS.find(a=>a.id===state.equippedAuraId) || AURAS[0];
+  const hex=aura.color || '#7c5cff';
+  const glow=hex;
+  const pixels=(x,y,w,h,col)=>{ctx.fillStyle=col;ctx.fillRect(x,y,w,h);};
+  // tiny pixel character
+  pixels(10,6,12,10,'#f2c7a5'); pixels(9,8,2,7,'#3a241d'); pixels(21,8,2,7,'#3a241d');
+  pixels(11,5,10,3,'#211827'); pixels(12,16,8,5,'#24243a'); pixels(9,21,5,7,'#303052'); pixels(18,21,5,7,'#303052');
+  pixels(14,12,2,2,'#11111a'); pixels(18,12,2,2,'#11111a'); pixels(15,15,3,1,'#9b4f5b');
+  pixels(6,12,2,2,glow); pixels(24,12,2,2,glow); pixels(7,16,2,2,glow); pixels(23,16,2,2,glow);
+  ctx.globalAlpha=.45; pixels(4,8,2,2,glow);pixels(26,8,2,2,glow);pixels(3,20,2,2,glow);pixels(27,20,2,2,glow);ctx.globalAlpha=1;
+}
+function renderAvatar(){
+  const aura=AURAS.find(a=>a.id===state.equippedAuraId) || AURAS[0];
+  const wrap=document.getElementById('avatarWrap'); if(wrap){wrap.style.setProperty('--aura-glow',(aura.color||'#7c5cff')+'88');wrap.title=aura.name;}
+  const name=document.getElementById('equippedAuraName'); if(name){name.textContent=aura.name;name.style.cssText=auraStyle(aura);name.style.display='inline-block';name.style.padding='3px 7px';name.style.borderRadius='7px';}
+  drawPixelAvatar();
+}
+function updateCooldownUI(start,duration){
+  const btn=document.getElementById('rollBtn'), text=document.getElementById('cooldownText'), sub=document.getElementById('rollBtnSub');
+  btn.classList.add('cooling');
+  const tick=()=>{
+    const left=Math.max(0,start+duration-Date.now()), progress=Math.min(100,((duration-left)/duration)*100);
+    btn.style.setProperty('--cooldown-progress',progress);
+    const sec=(left/1000).toFixed(1);
+    sub.textContent=`COOLDOWN ${sec}s`;
+    text.textContent=`⏳ ${sec}s`;
+    if(left>0) requestAnimationFrame(tick); else {btn.classList.remove('cooling');btn.style.removeProperty('--cooldown-progress');sub.textContent='READY';text.textContent='';}
+  }; tick();
+}
+
+function doRoll(){
+  if(state.isRolling) return;
+  state.isRolling=true;
+  const rollBtn=document.getElementById('rollBtn'), display=document.getElementById('rollDisplay');
+  rollBtn.disabled=true; display.className=''; display.style='';
+  const speed=hasSpeedActive();
+  const animMs=speed?BASE_ANIM_MS/2:BASE_ANIM_MS;
+  const cooldownMs=speed?BASE_COOLDOWN_MS/2:BASE_COOLDOWN_MS;
+  const luck=computeLuck();
+  const spinInterval=setInterval(()=>{
+    const rand=AURAS[Math.floor(Math.random()*AURAS.length)];
+    display.textContent=rand.name; display.style=auraStyle(rand);
+  },70);
+  setTimeout(()=>{
+    clearInterval(spinInterval);
+    const idx=pickAura(luck), aura=AURAS[idx], now=Date.now();
+    display.textContent=aura.name; display.style=auraStyle(aura); display.classList.add('hit');
+    state.shards+=aura.reward; state.totalRolls+=1; state.inventory[aura.id]=(state.inventory[aura.id]||0)+1;
+    if(!state.auraMeta[aura.id]) state.auraMeta[aura.id]={firstObtainedAt:now,lastObtainedAt:now};
+    else state.auraMeta[aura.id].lastObtainedAt=now;
+    if(idx>state.bestAuraIndex) state.bestAuraIndex=idx;
+    if(!state.equippedAuraId) state.equippedAuraId=aura.id;
+    if(aura.exclusive) showToast(`🌟👑 INSANE PULL! You found ${aura.name}!`);
+    else if(idx>=10) showToast(`🎉 You got ${aura.name}! +${fmt(aura.reward)} shards`);
+    renderAll(); saveServerState();
+    const cooldownStart=Date.now(); updateCooldownUI(cooldownStart,cooldownMs);
+    setTimeout(()=>{
+      state.isRolling=false; rollBtn.disabled=false;
+      if(state.autoRollActive) doRoll();
+    },cooldownMs);
+  },animMs);
+}
+
+function buyPotion(id){
+  const def = POTIONS.find(p=>p.id===id);
+  if(!def || state.shards < def.cost) return;
+  state.shards -= def.cost;
+  state.potionsBoughtCount += 1;
+  state.activePotions.push({ uid: Date.now()+Math.random(), def, endsAt: Date.now()+def.duration*1000 });
+  renderAll(); saveServerState();
+}
+
+function buyAccessory(id){
+  const def = ACCESSORIES.find(a=>a.id===id);
+  if(!def || state.shards < def.cost || state.ownedAccessories.includes(id)) return;
+  state.shards -= def.cost;
+  state.ownedAccessories.push(id);
+  renderAll(); saveServerState();
+}
+
+function toggleEquip(id){
+  const idx = state.equippedAccessories.indexOf(id);
+  if(idx>=0){
+    state.equippedAccessories.splice(idx,1);
+  } else {
+    if(state.equippedAccessories.length >= MAX_EQUIP){
+      showToast('⚠️ Maximum of 3 equipped accessories!');
+      return;
+    }
+    state.equippedAccessories.push(id);
+    state.everEquippedAccessory = true;
+  }
+  renderAll(); saveServerState();
+}
+
+function buyUpgrade(id){
+  const def = UPGRADES.find(u=>u.id===id);
+  if(!def || state.shards < def.cost || state.ownedUpgrades.includes(id)) return;
+  state.shards -= def.cost;
+  state.ownedUpgrades.push(id);
+  renderAll(); saveServerState();
+}
+
+function toggleAutoRoll(){
+  if(!state.ownedUpgrades.includes('auto')) return;
+  state.autoRollActive = !state.autoRollActive;
+  renderRollControls();
+  if(state.autoRollActive && !state.isRolling){
+    doRoll();
+  }
+}
+
+function renderRollControls(){
+  const btn = document.getElementById('autoRollBtn');
+  if(state.ownedUpgrades.includes('auto')){
+    btn.style.display = 'inline-block';
+    btn.textContent = 'Auto Roll: ' + (state.autoRollActive ? 'ON' : 'OFF');
+    btn.classList.toggle('on', state.autoRollActive);
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function renderStats(){
+  document.getElementById('shardsVal').textContent = fmt(state.shards);
+  const luck = computeLuck();
+  if(luck > state.maxLuckReached) state.maxLuckReached = luck;
+  document.getElementById('luckVal').textContent = luck.toFixed(2)+'x';
+  document.getElementById('rollsVal').textContent = fmt(state.totalRolls);
+}
+
+function renderActivePotions(){
+  const box = document.getElementById('activePotions');
+  box.innerHTML = '';
+  const now = Date.now();
+  state.activePotions = state.activePotions.filter(p=>p.endsAt > now);
+  state.activePotions.forEach(p=>{
+    const remaining = Math.ceil((p.endsAt-now)/1000);
+    const chip = document.createElement('div');
+    chip.className = 'potion-chip';
+    chip.textContent = `${p.def.name} · ${remaining}s`;
+    box.appendChild(chip);
+  });
+}
+
+// Re-checks every buy button's affordability live (fixes the shop "stuck disabled" bug)
+function refreshBuyButtons(){
+  document.querySelectorAll('.buy-btn[data-cost]').forEach(btn=>{
+    const cost = Number(btn.dataset.cost);
+    btn.disabled = state.shards < cost;
+  });
+}
+
+function renderUpgrades(){
+  const grid = document.getElementById('upgradeGrid');
+  grid.innerHTML = '';
+  UPGRADES.forEach(u=>{
+    const owned = state.ownedUpgrades.includes(u.id);
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <h3>${u.name}</h3>
+      <p>${u.desc}</p>
+      <div class="row">
+        <span class="cost">${owned?'✅ Owned':'💠 '+fmt(u.cost)}</span>
+        <button class="buy-btn ${owned?'owned':''}" ${owned?'':`data-cost="${u.cost}"`} ${(!owned && state.shards<u.cost)?'disabled':''}>${owned?'Owned':'Buy'}</button>
+      </div>`;
+    if(!owned){
+      card.querySelector('button').onclick = ()=>buyUpgrade(u.id);
+    }
+    grid.appendChild(card);
+  });
+}
+
+function renderShop(){
+  renderUpgrades();
+  const grid = document.getElementById('potionGrid');
+  grid.innerHTML = '';
+  POTIONS.forEach(p=>{
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <h3>${p.name}</h3>
+      <p>${p.desc}</p>
+      <div class="row">
+        <span class="cost">💠 ${fmt(p.cost)}</span>
+        <button class="buy-btn" data-cost="${p.cost}" ${state.shards<p.cost?'disabled':''}>Buy</button>
+      </div>`;
+    card.querySelector('button').onclick = ()=>buyPotion(p.id);
+    grid.appendChild(card);
+  });
+}
+
+function renderAccessories(){
+  const grid = document.getElementById('accessoryGrid');
+  grid.innerHTML = '';
+  ACCESSORIES.forEach(a=>{
+    const owned = state.ownedAccessories.includes(a.id);
+    const equipped = state.equippedAccessories.includes(a.id);
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    let btnHtml;
+    if(!owned){
+      btnHtml = `<button class="buy-btn" data-cost="${a.cost}" ${state.shards<a.cost?'disabled':''}>Buy</button>`;
+    } else {
+      btnHtml = `<button class="buy-btn ${equipped?'equipped':'owned'}">${equipped?'Equipped ✓':'Equip'}</button>`;
+    }
+    card.innerHTML = `
+      <h3>${a.name}</h3>
+      <p>${a.desc}</p>
+      <div class="row">
+        <span class="cost">${owned?'✅ Owned':'💠 '+fmt(a.cost)}</span>
+        ${btnHtml}
+      </div>`;
+    card.querySelector('button').onclick = ()=>{
+      if(!owned) buyAccessory(a.id);
+      else toggleEquip(a.id);
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderInventory(){
+  const grid=document.getElementById('inventoryGrid'); grid.innerHTML='';
+  AURAS.forEach(aura=>{
+    const count=state.inventory[aura.id]||0, meta=state.auraMeta[aura.id];
+    const equipped=state.equippedAuraId===aura.id;
+    const card=document.createElement('div'); card.className='item-card inv-card'+(count===0?' locked':'')+(equipped?' equipped':'');
+    const info=count?`<div class="aura-meta">First: ${formatDate(meta?.firstObtainedAt)}<br>Last: ${formatDate(meta?.lastObtainedAt)}</div>`:'<div class="aura-meta">Locked — roll to discover</div>';
+    card.innerHTML=`<div class="count">x${count}</div><h3><span class="aura-title" style="${auraStyle(aura)}">${aura.name}</span></h3><div class="odds">1 in ${fmt(aura.chance)}</div><span class="rarity-badge">${getRarityLabel(aura)}</span>${aura.exclusive?'<span class="exclusive-tag">★ EXCLUSIVE TIER ★</span>':''}${info}${equipped?'<div class="hint">✓ Equipped — click another aura to switch</div>':''}`;
+    if(count) card.onclick=()=>setEquippedAura(aura.id);
+    grid.appendChild(card);
+  });
+}
+
+function isQuestComplete(q){
+  switch(q.type){
+    case 'rolls': return state.totalRolls >= q.target;
+    case 'auraIndex': return state.bestAuraIndex >= q.target;
+    case 'potionBought': return state.potionsBoughtCount >= q.target;
+    case 'accessoryEquipped': return state.everEquippedAccessory;
+    case 'upgradeOwned': return state.ownedUpgrades.includes('auto');
+    case 'luck': return state.maxLuckReached >= q.target;
+    default: return false;
+  }
+}
+
+function questProgressText(q){
+  switch(q.type){
+    case 'rolls': return `${Math.min(state.totalRolls,q.target)} / ${q.target} rolls`;
+    case 'auraIndex': {
+      const bestName = state.bestAuraIndex>=0 ? AURAS[state.bestAuraIndex].name : 'None yet';
+      return isQuestComplete(q) ? 'Completed!' : `Best so far: ${bestName}`;
+    }
+    case 'potionBought': return isQuestComplete(q) ? 'Completed!' : 'Not yet';
+    case 'accessoryEquipped': return isQuestComplete(q) ? 'Completed!' : 'Not yet';
+    case 'upgradeOwned': return isQuestComplete(q) ? 'Completed!' : 'Not yet';
+    case 'luck': return `Best Luck: ${state.maxLuckReached.toFixed(2)}x / ${q.target}x`;
+    default: return '';
+  }
+}
+
+function claimQuest(id){
+  const q = QUESTS.find(x=>x.id===id);
+  if(!q || !isQuestComplete(q) || state.claimedQuests.includes(id)) return;
+  state.shards += q.reward;
+  state.claimedQuests.push(id);
+  showToast(`✅ Quest complete: ${q.name}! +${fmt(q.reward)} shards`);
+  renderAll(); saveServerState();
+}
+
+function renderQuests(){
+  const grid = document.getElementById('questGrid');
+  grid.innerHTML = '';
+  QUESTS.forEach(q=>{
+    const complete = isQuestComplete(q);
+    const claimed = state.claimedQuests.includes(q.id);
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <h3>${q.name}</h3>
+      <p>${q.desc}</p>
+      <div class="odds">${questProgressText(q)}</div>
+      <div class="row">
+        <span class="cost">💠 ${fmt(q.reward)}</span>
+        <button class="buy-btn ${claimed?'owned':''}" ${(!complete||claimed)?'disabled':''}>${claimed?'Claimed ✓':(complete?'Claim':'Locked')}</button>
+      </div>`;
+    if(complete && !claimed){
+      card.querySelector('button').onclick = ()=>claimQuest(q.id);
+    }
+    grid.appendChild(card);
+  });
+}
+
+function renderProfile(){
+  document.getElementById('playerTag').textContent = state.playerName ? `Logged in as ${state.playerName}` : 'Not logged in';
+  const input = document.getElementById('playerNameInput');
+  if(document.activeElement !== input) input.value = state.playerName;
+}
+
+function serializeState(){
+  const now=Date.now();
+  return {playerName:state.playerName||'Player',shards:state.shards,totalRolls:state.totalRolls,bestAuraIndex:state.bestAuraIndex,inventory:state.inventory,auraMeta:state.auraMeta,equippedAuraId:state.equippedAuraId,ownedAccessories:state.ownedAccessories,equippedAccessories:state.equippedAccessories,ownedUpgrades:state.ownedUpgrades,potionsBoughtCount:state.potionsBoughtCount,everEquippedAccessory:state.everEquippedAccessory,maxLuckReached:state.maxLuckReached,claimedQuests:state.claimedQuests,activePotions:state.activePotions.map(p=>({potionId:p.def.id,remainingMs:Math.max(0,p.endsAt-now)})),savedAt:now};
+}
+function restoreState(data){
+  state.playerName=data.playerName||'Player'; state.shards=typeof data.shards==='number'?data.shards:0; state.totalRolls=data.totalRolls||0; state.bestAuraIndex=data.bestAuraIndex??-1; state.inventory=data.inventory||{}; state.auraMeta=data.auraMeta||{}; state.equippedAuraId=data.equippedAuraId||Object.keys(state.inventory).find(id=>state.inventory[id]>0)||null; state.ownedAccessories=data.ownedAccessories||[]; state.equippedAccessories=data.equippedAccessories||[]; state.ownedUpgrades=data.ownedUpgrades||[]; state.autoRollActive=false; state.potionsBoughtCount=data.potionsBoughtCount||0; state.everEquippedAccessory=!!data.everEquippedAccessory; state.maxLuckReached=data.maxLuckReached||1; state.claimedQuests=data.claimedQuests||[];
+  const now=Date.now(); state.activePotions=(data.activePotions||[]).map(p=>{const def=POTIONS.find(d=>d.id===p.potionId);return def?{uid:Date.now()+Math.random(),def,endsAt:now+(p.remainingMs||0)}:null;}).filter(Boolean);
+  renderAll();
+}
+let saveTimer=null;
+async function saveServerState(){
+  clearTimeout(saveTimer); saveTimer=setTimeout(async()=>{
+    try{const r=await fetch(`/api/state/${encodeURIComponent(getPlayerId())}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(serializeState())}); if(!r.ok) throw new Error('save'); setSync('☁️ Saved to server');}catch(e){setSync('⚠️ Server save failed — retrying');}},180);
+}
+function getPlayerId(){let id=localStorage.getItem('brizin_player_id');if(!id){id=crypto.randomUUID?crypto.randomUUID():('p_'+Date.now()+'_'+Math.random().toString(36).slice(2));localStorage.setItem('brizin_player_id',id);}return id;}
+function setSync(msg){const el=document.getElementById('syncStatus');if(el)el.textContent=msg;}
+async function loadServerState(){
+  try{setSync('☁️ Loading your server save...');const r=await fetch(`/api/state/${encodeURIComponent(getPlayerId())}`);if(r.ok){restoreState(await r.json());setSync('☁️ Synced with server');}else if(r.status===404){await saveServerState();setSync('☁️ New server save created');}else throw new Error('load');}
+  catch(e){setSync('⚠️ Could not reach server. Start server.js and refresh.');showToast('⚠️ Server offline — progress cannot be synced.');}
+}
+
+function renderAll(){
+  renderStats();
+  renderShop();
+  renderAccessories();
+  renderQuests();
+  renderInventory();
+  renderRollControls();
+  renderActivePotions();
+  renderAvatar();
+  renderProfile();
+}
+
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  };
+});
+
+document.getElementById('rollBtn').onclick = doRoll;
+document.getElementById('autoRollBtn').onclick = toggleAutoRoll;
+
+document.getElementById('loginBtn').onclick = ()=>{
+  const val = document.getElementById('playerNameInput').value.trim();
+  state.playerName = val || 'Player';
+  renderProfile();
+  showToast(`👋 Logged in as ${state.playerName}`);
+  saveServerState();
+};
+
+
+
+// Ticks every 500ms: updates timers/stats AND live-refreshes shop button states (fixes the old bug)
+setInterval(()=>{
+  renderActivePotions();
+  renderStats();
+  refreshBuyButtons();
+}, 500);
+
+renderAll();
+loadServerState();
+</script>
+</body>
+</html>
